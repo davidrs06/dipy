@@ -43,8 +43,8 @@ class GradientTable(object):
     gradient_table
 
     """
-    def __init__(self, gradients, big_delta=None, small_delta=None,
-                 b0_threshold=0):
+    def __init__(self, gradients, G = None, big_delta=None, small_delta=None,
+                 TE = None, b0_threshold=0):
         """Constructor for GradientTable class"""
         gradients = np.asarray(gradients)
         if gradients.ndim != 2 or gradients.shape[1] != 3:
@@ -52,13 +52,23 @@ class GradientTable(object):
         self.gradients = gradients
         # Avoid nan gradients. Set these to 0 instead:
         self.gradients = np.where(np.isnan(gradients), 0., gradients)
+        self.G = G
         self.big_delta = big_delta
         self.small_delta = small_delta
+        self.TE = TE
         self.b0_threshold = b0_threshold
+        self.nS = gradients.shape[0]
+        if G != None and big_delta != None and small_delta != None and TE!=None:
+            self.version = 1
+        else:
+            self.version = 0
 
     @auto_attr
     def bvals(self):
-        return vector_norm(self.gradients)
+        if self.version:
+            return np.power( 267.513e6 * self.G * self.small_delta, 2) * (self.big_delta - self.small_delta/3) * 1e-6
+        else:
+            return vector_norm(self.gradients)
 
     @auto_attr
     def qvals(self):
@@ -68,6 +78,10 @@ class GradientTable(object):
     @auto_attr
     def b0s_mask(self):
         return self.bvals <= self.b0_threshold
+    
+    @auto_attr
+    def dwi_mask(self):
+        return -self.b0s_mask
 
     @auto_attr
     def bvecs(self):
@@ -76,6 +90,39 @@ class GradientTable(object):
         denom = self.bvals + (self.bvals == 0)
         denom = denom.reshape((-1, 1))
         return self.gradients / denom
+    
+    @auto_attr
+    def dwi_count(self):
+        return sum(self.dwi_mask)
+    
+    @auto_attr
+    def b0_count(self):
+        return sum(self.b0s_mask)
+    
+    @auto_attr
+    def shells(self):
+        if self.version:
+            scheme = np.column_stack((self.G, self.big_delta, self.small_delta, self.TE))
+        else:
+            scheme = self.bvals.copy()
+        _, idx_u = np.unique(np.ascontiguousarray(scheme).view(np.dtype((np.void, scheme.dtype.itemsize * scheme.shape[1]))), return_index=True)
+        idx_u = np.sort(idx_u)
+        shells = []
+        for i in idx_u:
+            if self.bvals[i] > self.b0_threshold:
+                tmp = {'bval':self.bvals[i]}
+                if self.version:
+                    tmp['G'] = scheme[i,0]
+                    tmp['Delta'] = scheme[i,1]
+                    tmp['delta'] = scheme[i,2]
+                    tmp['TE'] = scheme[i,3]
+                else:
+                    tmp['G'] = np.nan
+                    tmp['Delta'] = np.nan
+                    tmp['delta'] = np.nan
+                    tmp['TE'] = np.nan
+                shells.append(tmp)
+        return shells
 
     @property
     def info(self):
@@ -85,6 +132,15 @@ class GradientTable(object):
         print('B-vectors shape (%d, %d)' % self.bvecs.shape)
         print('         min %f ' % self.bvecs.min())
         print('         max %f ' % self.bvecs.max())
+        
+    def write_to_camino_file(self,filename):
+        if self.version:
+            scheme = np.column_stack((self.gradients, self.G, self.big_delta, self.small_delta, self.TE))
+            header = 'VERSION: STEJSKALTANNER'
+        else:
+            scheme = np.column_stack((self.gradients,self.bvals))
+            header = 'VERSION: BVECTOR'
+        np.savetxt(filename,scheme, header = header, fmt = '%15e')
 
 
 def gradient_table_from_bvals_bvecs(bvals, bvecs, b0_threshold=0, atol=1e-2,
@@ -144,8 +200,24 @@ def gradient_table_from_bvals_bvecs(bvals, bvecs, b0_threshold=0, atol=1e-2,
 
     return grad_table
 
-def gradient_table(bvals, bvecs=None, big_delta=None, small_delta=None,
-                   b0_threshold=0, atol=1e-2):
+def gradient_table_from_camino(filename, b0_threshold):
+    camino = np.loadtxt(filename,skiprows=1)
+    if camino.shape[1] > 4:
+        bvecs = camino[:,0:3]
+        G = camino[:,3]
+        big_delta = camino[:,4]
+        small_delta = camino[:,5]
+        TE = camino[:,6]
+        return GradientTable(bvecs, G, big_delta, small_delta, TE, b0_threshold)
+    else:
+        bvecs = camino[:,0:3]
+        bvals = camino[:,3]
+        bvecs = bvecs/vector_norm(bvecs)*bvals
+        return GradientTable(bvecs, b0_threshold = b0_threshold)
+        
+
+def gradient_table(bvals, bvecs=None, G = None, big_delta=None, small_delta=None,
+                   TE = None, b0_threshold=0, atol=1e-2):
     """A general function for creating diffusion MR gradients.
 
     It reads, loads and prepares scanner parameters like the b-values and
@@ -158,9 +230,9 @@ def gradient_table(bvals, bvecs=None, big_delta=None, small_delta=None,
 
         1. an array of shape (N,) or (1, N) or (N, 1) with the b-values.
         2. a path for the file which contains an array like the above (1).
-        3. an array of shape (N, 4) or (4, N). Then this parameter is
-           considered to be a b-table which contains both bvals and bvecs. In
-           this case the next parameter is skipped.
+        3. an array of shape (N, 4) or (4, N) or (N, 7) or (7, N). Then this 
+           parameter is considered to be a b-table which contains both bvals 
+           and bvecs. In this case the next parameter is skipped.
         4. a path for the file which contains an array like the one at (3).
 
     bvecs : can be any of two options
@@ -220,19 +292,31 @@ def gradient_table(bvals, bvecs=None, big_delta=None, small_delta=None,
     # If you provided strings with full paths, we go and load those from
     # the files:
     if isinstance(bvals, string_types):
-          bvals, _ = io.read_bvals_bvecs(bvals, None)
+        bvals, _ = io.read_bvals_bvecs(bvals, None)
     if isinstance(bvecs, string_types):
-          _, bvecs = io.read_bvals_bvecs(None, bvecs)
+        _, bvecs = io.read_bvals_bvecs(None, bvecs)
 
     bvals = np.asarray(bvals)
-    # If bvecs is None we expect bvals to be an (N, 4) or (4, N) array.
+    # If bvecs is None we expect bvals to be an (N, 4) or (4, N) or (N, 7) or (7, N) array.
     if bvecs is None:
         if bvals.shape[-1] == 4:
-            bvecs = bvals[:, 1:]
-            bvals = np.squeeze(bvals[:, 0])
+            bvecs = bvals[:, 0:3]
+            bvals = np.squeeze(bvals[:, 3])
         elif bvals.shape[0] == 4:
-            bvecs = bvals[1:, :].T
-            bvals = np.squeeze(bvals[0, :])
+            bvecs = bvals[0:3, :].T
+            bvals = np.squeeze(bvals[3, :])
+        elif bvals.shape[-1] == 7:
+            bvecs = bvals[:, 0:3]
+            G = bvals[:,3]
+            big_delta = bvals[:,4]
+            small_delta = bvals[:,5]
+            TE = bvals[:,6]
+        elif bvals.shape[0] == 7:
+            bvecs = bvals[0:3,:]
+            G = bvals[3,:]
+            big_delta = bvals[4,:]
+            small_delta = bvals[5,:]
+            TE = bvals[6,:]
         else:
             raise ValueError("input should be bvals and bvecs OR an (N, 4)"
                              " array containing both bvals and bvecs")
@@ -240,7 +324,10 @@ def gradient_table(bvals, bvecs=None, big_delta=None, small_delta=None,
         bvecs = np.asarray(bvecs)
         if (bvecs.shape[1] > bvecs.shape[0])  and bvecs.shape[0]>1:
             bvecs = bvecs.T
-    return gradient_table_from_bvals_bvecs(bvals, bvecs, big_delta=big_delta,
-                                           small_delta=small_delta,
+    if bvals.shape[-1] == 4 or bvals.shape[0] == 4:
+        return gradient_table_from_bvals_bvecs(bvals, bvecs, G = G, big_delta=big_delta,
+                                           small_delta=small_delta, TE = TE,
                                            b0_threshold=b0_threshold,
                                            atol=atol)
+    else:
+        return GradientTable(bvecs, G, big_delta, small_delta, TE, b0_threshold)
