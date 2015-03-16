@@ -58,14 +58,10 @@ class GradientTable(object):
         self.TE = TE
         self.b0_threshold = b0_threshold
         self.nS = gradients.shape[0]
-        if gradient_strength != None and big_delta != None and small_delta != None and TE!=None:
-            self.version = 1
-        else:
-            self.version = 0
 
     @auto_attr
     def bvals(self):
-        if self.version:
+        if self.gradient_strength is not None and self.big_delta is not None and self.small_delta is not None and self. TE is not None:
             return np.power( 267.513e6 * self.gradient_strength * self.small_delta, 2) * (self.big_delta - self.small_delta/3) * 1e-6
         else:
             return vector_norm(self.gradients)
@@ -101,7 +97,7 @@ class GradientTable(object):
     
     @auto_attr
     def shells(self):
-        if self.version:
+        if self.gradient_strength is not None and self.big_delta is not None and self.small_delta is not None and self. TE is not None:
             scheme = np.column_stack((self.gradient_strength, self.big_delta, self.small_delta, self.TE))
         else:
             scheme = self.bvals.copy()
@@ -111,7 +107,7 @@ class GradientTable(object):
         for i in idx_u:
             if self.bvals[i] > self.b0_threshold:
                 tmp = {'bval':self.bvals[i]}
-                if self.version:
+                if self.gradient_strength is not None and self.big_delta is not None and self.small_delta is not None and self. TE is not None:
                     tmp['gradient_strength'] = scheme[i,0]
                     tmp['Delta'] = scheme[i,1]
                     tmp['delta'] = scheme[i,2]
@@ -134,7 +130,7 @@ class GradientTable(object):
         print('         max %f ' % self.bvecs.max())
         
     def write_to_camino_file(self,filename):
-        if self.version:
+        if self.gradient_strength is not None and self.big_delta is not None and self.small_delta is not None and self. TE is not None:
             scheme = np.column_stack((self.gradients, self.gradient_strength, self.big_delta, self.small_delta, self.TE))
             header = 'VERSION: STEJSKALTANNER'
         else:
