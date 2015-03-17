@@ -15,6 +15,7 @@ import scipy.optimize as opt
 from .noddi import MakeModel, scheme2noddi, SynthMeasWatsonSHCylNeuman_PGSE, SynthMeasWatsonHinderedDiffusion_PGSE
 from ..core.gradients import gradient_table_from_camino, GradientTable
 from ..core.geometry import vector_norm, cart2sphere
+from ..io.gradients import write_gradient_to_camino_file
 
 """from dipy.utils.six.moves import range
 from dipy.data import get_sphere
@@ -54,7 +55,7 @@ def AMICO_CreateHighResolutionScheme( schemeFilename, filenameHR ):
         row = row + 500
         
     HR_scheme = GradientTable(gradients, G, big_delta, small_delta, TE, b0_threshold=0)
-    HR_scheme.write_to_camino_file(filenameHR)
+    write_gradient_to_camino_file(HR_scheme,filenameHR)
     
     return HR_scheme
 

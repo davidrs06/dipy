@@ -136,15 +136,6 @@ class GradientTable(object):
         print('B-vectors shape (%d, %d)' % self.bvecs.shape)
         print('         min %f ' % self.bvecs.min())
         print('         max %f ' % self.bvecs.max())
-        
-    def write_to_camino_file(self,filename):
-        if self.gradient_strength is not None and self.big_delta is not None and self.small_delta is not None and self. TE is not None:
-            scheme = np.column_stack((self.gradients, self.gradient_strength, self.big_delta, self.small_delta, self.TE))
-            header = 'VERSION: STEJSKALTANNER'
-        else:
-            scheme = np.column_stack((self.gradients,self.bvals))
-            header = 'VERSION: BVECTOR'
-        np.savetxt(filename,scheme, header = header, fmt = '%15e')
 
 
 def gradient_table_from_bvals_bvecs(bvals, bvecs, b0_threshold=0, atol=1e-2,

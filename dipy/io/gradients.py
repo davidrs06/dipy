@@ -72,3 +72,12 @@ def read_bvals_bvecs(fbvals, fbvecs):
             raise IOError('b-values and b-vectors shapes do not correspond')
 
     return bvals, bvecs
+
+def write_gradient_to_camino_file(gradient_object,filename):
+    if gradient_object.gradient_strength is not None and gradient_object.big_delta is not None and gradient_object.small_delta is not None and gradient_object.TE is not None:
+        scheme = np.column_stack((gradient_object.gradients, gradient_object.gradient_strength, gradient_object.big_delta, gradient_object.small_delta, gradient_object.TE))
+        header = 'VERSION: STEJSKALTANNER'
+    else:
+        scheme = np.column_stack((gradient_object.gradients,gradient_object.bvals))
+        header = 'VERSION: BVECTOR'
+    np.savetxt(filename,scheme, header = header, fmt = '%15e')
