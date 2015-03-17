@@ -149,14 +149,14 @@ def scheme2noddi(scheme):
     
     protocol['delta'] = np.zeros(bval.shape)
     protocol['smalldel'] = np.zeros(bval.shape)
-    protocol['G'] = np.zeros(bval.shape)
+    protocol['gradient_strength'] = np.zeros(bval.shape)
     
     for i in range(len(B)):
         tmp = np.nonzero(bval==B[i])
         for j in range(len(tmp[0])):
             protocol['delta'][tmp[0][j]] = protocol['udelta'][i]
             protocol['smalldel'][tmp[0][j]] = protocol['usmalldel'][i]
-            protocol['G'][tmp[0][j]] = protocol['uG'][i]
+            protocol['gradient_strength'][tmp[0][j]] = protocol['uG'][i]
     
     # load bvec
     protocol['grad_dirs'] = scheme.gradients.copy()
@@ -675,7 +675,7 @@ def SynthMeasIsoGPD(d, protocol):
     if (protocol['pulseseq'] == 'PGSE') or (protocol['pulseseq'] == 'STEAM'):
     
         GAMMA = 2.675987E8
-        modQ = GAMMA*protocol['smalldel'].transpose()*protocol.G.transpose()
+        modQ = GAMMA*protocol['smalldel'].transpose()*protocol.gradient_strength.transpose()
         modQ_Sq = np.power(modQ,2)
         difftime = (protocol['delta'].transpose()-protocol['smalldel']/3)
     

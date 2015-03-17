@@ -140,14 +140,14 @@ def AMICO_GenerateKernels_NODDI(config, data_path, schemeHR, AUX, idx_IN, idx_OU
     idx = 1
     for ii in range( len(IC_KAPPAs)):
         kappa = IC_KAPPAs[ii]
-        signal_ic = SynthMeasWatsonSHCylNeuman_PGSE( np.array([dPar, 0, kappa]), protocolHR['grad_dirs'], np.squeeze(protocolHR['G']), np.squeeze(protocolHR['delta']), np.squeeze(protocolHR['smalldel']), np.array([0,0,1]), 0 )
+        signal_ic = SynthMeasWatsonSHCylNeuman_PGSE( np.array([dPar, 0, kappa]), protocolHR['grad_dirs'], np.squeeze(protocolHR['gradient_strength']), np.squeeze(protocolHR['delta']), np.squeeze(protocolHR['smalldel']), np.array([0,0,1]), 0 )
         
         for v_ic in config.kernels['IC_VFs']:
             print( '\t\t- A_%03d... ' % idx )
             
             # generate
             dPerp = dPar * (1 - v_ic)
-            signal_ec = SynthMeasWatsonHinderedDiffusion_PGSE( np.array([dPar, dPerp, kappa]), protocolHR['grad_dirs'], np.squeeze(protocolHR['G']), np.squeeze(protocolHR['delta']), np.squeeze(protocolHR['smalldel']), np.array([0,0,1]) )
+            signal_ec = SynthMeasWatsonHinderedDiffusion_PGSE( np.array([dPar, dPerp, kappa]), protocolHR['grad_dirs'], np.squeeze(protocolHR['gradient_strength']), np.squeeze(protocolHR['delta']), np.squeeze(protocolHR['smalldel']), np.array([0,0,1]) )
             signal = v_ic*signal_ic + (1-v_ic)*signal_ec
 
             # rotate and save
