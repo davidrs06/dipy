@@ -16,6 +16,14 @@ class GradientTable(object):
     ----------
     gradients : array_like (N, 3)
         N diffusion gradients
+    gradient_strength : array_like (N, 1)
+        N gradient strengths
+    big_delta : array_like (N, 1)
+        N diffusion gradient separations
+    small_delta : array_like (N, 1)
+        N diffusion gradient durations
+    TE : array_like (N, 1)
+        N echo times
     b0_threshold : float
         Gradients with b-value less than or equal to `b0_threshold` are
         considered as b0s i.e. without diffusion weighting.
@@ -197,6 +205,26 @@ def gradient_table_from_bvals_bvecs(bvals, bvecs, b0_threshold=0, atol=1e-2,
     return grad_table
 
 def gradient_table_from_camino(filename, b0_threshold):
+    """Creates a GradientTable from a Camino scheme file (BVECTOR or STEJSKALTANNER)
+
+    Parameters
+    ----------
+    filename : string
+        Path to the Camino scheme file.
+    b0_threshold : float
+        Gradients with b-value less than or equal to `bo_threshold` are
+        considered to not have diffusion weighting.
+
+    Returns
+    -------
+    gradients : GradientTable
+        A GradientTable with all the gradient information.
+
+    See Also
+    --------
+    GradientTable, gradient_table
+
+    """
     camino = np.loadtxt(filename,skiprows=1)
     if camino.shape[1] > 4:
         bvecs = camino[:,0:3]
@@ -212,8 +240,8 @@ def gradient_table_from_camino(filename, b0_threshold):
         return GradientTable(bvecs, b0_threshold = b0_threshold)
         
 
-def gradient_table(bvals, bvecs=None, gradient_strength = None, big_delta=None, small_delta=None,
-                   TE = None, b0_threshold=0, atol=1e-2):
+def gradient_table(bvals, bvecs=None, big_delta=None, small_delta=None,
+                   b0_threshold=0, atol=1e-2):
     """A general function for creating diffusion MR gradients.
 
     It reads, loads and prepares scanner parameters like the b-values and
@@ -226,9 +254,9 @@ def gradient_table(bvals, bvecs=None, gradient_strength = None, big_delta=None, 
 
         1. an array of shape (N,) or (1, N) or (N, 1) with the b-values.
         2. a path for the file which contains an array like the above (1).
-        3. an array of shape (N, 4) or (4, N) or (N, 7) or (7, N). Then this 
-           parameter is considered to be a b-table which contains both bvals 
-           and bvecs. In this case the next parameter is skipped.
+        3. an array of shape (N, 4) or (4, N). Then this parameter is
+           considered to be a b-table which contains both bvals and bvecs
+           in a bxyz order. In this case the next parameter is skipped.
         4. a path for the file which contains an array like the one at (3).
 
     bvecs : can be any of two options
@@ -293,26 +321,14 @@ def gradient_table(bvals, bvecs=None, gradient_strength = None, big_delta=None, 
         _, bvecs = io.read_bvals_bvecs(None, bvecs)
 
     bvals = np.asarray(bvals)
-    # If bvecs is None we expect bvals to be an (N, 4) or (4, N) or (N, 7) or (7, N) array.
+    # If bvecs is None we expect bvals to be an (N, 4) or (4, N) array.
     if bvecs is None:
         if bvals.shape[-1] == 4:
-            bvecs = bvals[:, 0:3]
-            bvals = np.squeeze(bvals[:, 3])
+            bvecs = bvals[:, 1:]
+            bvals = np.squeeze(bvals[:, 0])
         elif bvals.shape[0] == 4:
-            bvecs = bvals[0:3, :].T
-            bvals = np.squeeze(bvals[3, :])
-        elif bvals.shape[-1] == 7:
-            bvecs = bvals[:, 0:3]
-            gradient_strength = bvals[:,3]
-            big_delta = bvals[:,4]
-            small_delta = bvals[:,5]
-            TE = bvals[:,6]
-        elif bvals.shape[0] == 7:
-            bvecs = bvals[0:3,:]
-            gradient_strength = bvals[3,:]
-            big_delta = bvals[4,:]
-            small_delta = bvals[5,:]
-            TE = bvals[6,:]
+            bvecs = bvals[1:, :].T
+            bvals = np.squeeze(bvals[0, :])
         else:
             raise ValueError("input should be bvals and bvecs OR an (N, 4)"
                              " array containing both bvals and bvecs")
@@ -320,10 +336,7 @@ def gradient_table(bvals, bvecs=None, gradient_strength = None, big_delta=None, 
         bvecs = np.asarray(bvecs)
         if (bvecs.shape[1] > bvecs.shape[0])  and bvecs.shape[0]>1:
             bvecs = bvecs.T
-    if bvals.shape[-1] == 4 or bvals.shape[0] == 4:
-        return gradient_table_from_bvals_bvecs(bvals, bvecs, gradient_strength = gradient_strength, big_delta=big_delta,
-                                           small_delta=small_delta, TE = TE,
+    return gradient_table_from_bvals_bvecs(bvals, bvecs, big_delta=big_delta,
+                                           small_delta=small_delta,
                                            b0_threshold=b0_threshold,
                                            atol=atol)
-    else:
-        return GradientTable(bvecs, gradient_strength, big_delta, small_delta, TE, b0_threshold)
