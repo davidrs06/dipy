@@ -12,7 +12,7 @@ import math
 
 import scipy.optimize as opt
 
-from .noddi import MakeModel, scheme2noddi, SynthMeasWatsonSHCylNeuman_PGSE, SynthMeasWatsonHinderedDiffusion_PGSE
+from .noddi import make_model, scheme2noddi, synth_meas_watson_SH_cyl_neuman_PGSE, synth_meas_watson_hindered_diffusion_PGSE
 from ..core.gradients import gradient_table_from_camino, GradientTable
 from ..core.geometry import vector_norm, cart2sphere
 from ..io.gradients import write_gradient_to_camino_file
@@ -25,7 +25,7 @@ from .vec_val_sum import vec_val_vect
 from ..core.onetime import auto_attr
 from .base import ReconstModel, ReconstFit"""
 
-def AMICO_CreateHighResolutionScheme( schemeFilename, filenameHR ):
+def create_high_resolution_scheme( schemeFilename, filenameHR ):
     
     # load scheme
     scheme = gradient_table_from_camino(schemeFilename, b0_threshold=0)
@@ -59,7 +59,7 @@ def AMICO_CreateHighResolutionScheme( schemeFilename, filenameHR ):
     
     return HR_scheme
 
-def AMICO_CreateYlm(lmax, colatitude, longitude):
+def create_ylm(lmax, colatitude, longitude):
     
     Ylm = np.zeros((np.size(longitude),(lmax+2)*(lmax+1)/2))
     for l in range(0,lmax+1,2):
@@ -78,25 +78,25 @@ def AMICO_CreateYlm(lmax, colatitude, longitude):
     
     return Ylm
 
-def AMICO_PrecomputeRotationMatrices(lmax):
+def precompute_rotation_matrices(lmax):
     dirs_path = pkg_resources.resource_filename('dipy',op.join('data','500_dirs.txt'))
     grad500 = np.loadtxt( dirs_path )
     for i in range(len(grad500)):
         grad500[i,:] = grad500[i,:] / vector_norm( grad500[i,:] )
     _,colatitude,longitude = cart2sphere(grad500[:,0], grad500[:,1],grad500[:,2])
-    Ylm = AMICO_CreateYlm( lmax, colatitude, longitude )
+    Ylm = create_ylm( lmax, colatitude, longitude )
     fit = np.dot(np.linalg.pinv( np.dot(Ylm.T,Ylm)) , Ylm.T)
     
     Ylm_rot = np.zeros((181,181,longitude.shape[0],(lmax+2)*(lmax+1)/2))
     for ox in range(Ylm_rot.shape[0]):
         for oy in range(Ylm_rot.shape[1]):
-            Ylm_rot[ox,oy] = AMICO_CreateYlm( lmax, ox/180.0*np.pi, oy/180.0*np.pi )
+            Ylm_rot[ox,oy] = create_ylm( lmax, ox/180.0*np.pi, oy/180.0*np.pi )
     
     AUX = {'Ylm_rot':Ylm_rot, 'fit':fit}
     
     return AUX
 
-def AMICO_RotateKernel( K, AUX, idx_IN, idx_OUT, isIsotropic ):
+def rotate_kernel( K, AUX, idx_IN, idx_OUT, isIsotropic ):
     
     if not isIsotropic:
         # fit SH and rotate kernel to 181*181 directions
@@ -123,11 +123,11 @@ def AMICO_RotateKernel( K, AUX, idx_IN, idx_OUT, isIsotropic ):
     
     return KRlm
     
-def AMICO_GenerateKernels_NODDI(config, data_path, schemeHR, AUX, idx_IN, idx_OUT):
+def generate_kernels_NODDI(config, data_path, schemeHR, AUX, idx_IN, idx_OUT):
     
     ATOMS_path = op.join(data_path,config.protocol,'common')
     
-    noddi = MakeModel( 'WatsonSHStickTortIsoV_B0' ) # CHECK: might be unnecessary for our purpose -> ask Alessandro
+    noddi = make_model( 'WatsonSHStickTortIsoV_B0' ) # CHECK: might be unnecessary for our purpose -> ask Alessandro
     dPar = config.kernels['dPar'] * 1E-9
     dIso = config.kernels['dIso'] * 1E-9
     noddi['GS']['fixedvals'][1] = dPar
@@ -141,18 +141,18 @@ def AMICO_GenerateKernels_NODDI(config, data_path, schemeHR, AUX, idx_IN, idx_OU
     idx = 1
     for ii in range( len(IC_KAPPAs)):
         kappa = IC_KAPPAs[ii]
-        signal_ic = SynthMeasWatsonSHCylNeuman_PGSE( np.array([dPar, 0, kappa]), protocolHR['grad_dirs'], np.squeeze(protocolHR['gradient_strength']), np.squeeze(protocolHR['delta']), np.squeeze(protocolHR['smalldel']), np.array([0,0,1]), 0 )
+        signal_ic = synth_meas_watson_SH_cyl_neuman_PGSE( np.array([dPar, 0, kappa]), protocolHR['grad_dirs'], np.squeeze(protocolHR['gradient_strength']), np.squeeze(protocolHR['delta']), np.squeeze(protocolHR['smalldel']), np.array([0,0,1]), 0 )
         
         for v_ic in config.kernels['IC_VFs']:
             print( '\t\t- A_%03d... ' % idx )
             
             # generate
             dPerp = dPar * (1 - v_ic)
-            signal_ec = SynthMeasWatsonHinderedDiffusion_PGSE( np.array([dPar, dPerp, kappa]), protocolHR['grad_dirs'], np.squeeze(protocolHR['gradient_strength']), np.squeeze(protocolHR['delta']), np.squeeze(protocolHR['smalldel']), np.array([0,0,1]) )
+            signal_ec = synth_meas_watson_hindered_diffusion_PGSE( np.array([dPar, dPerp, kappa]), protocolHR['grad_dirs'], np.squeeze(protocolHR['gradient_strength']), np.squeeze(protocolHR['delta']), np.squeeze(protocolHR['smalldel']), np.array([0,0,1]) )
             signal = v_ic*signal_ic + (1-v_ic)*signal_ec
 
             # rotate and save
-            lm = AMICO_RotateKernel( signal, AUX, idx_IN, idx_OUT, False )
+            lm = rotate_kernel( signal, AUX, idx_IN, idx_OUT, False )
             save( fullfile( ATOMS_path, sprintf('A_%03d.mat',idx) ), '-v6', 'lm' )
 
             idx = idx+1
@@ -211,7 +211,7 @@ class amico_conf(object):
 config = amico_conf('/home/david/Desktop/Test_folder','NODDI','subj_1','noddi')
 data_path = '/home/david/Desktop/Test_folder/NODDI'
 
-schemeHR = AMICO_CreateHighResolutionScheme( '/home/david/Desktop/Test_folder/NODDI/scheme_for_dipy.txt', '/home/david/Desktop/Test_folder/NODDI/dipy_HR_scheme.txt' )
+schemeHR = create_high_resolution_scheme( '/home/david/Desktop/Test_folder/NODDI/scheme_for_dipy.txt', '/home/david/Desktop/Test_folder/NODDI/dipy_HR_scheme.txt' )
 
 
 Note:

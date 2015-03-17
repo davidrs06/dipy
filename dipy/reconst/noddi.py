@@ -22,7 +22,7 @@ from .base import ReconstModel, ReconstFit"""
 import scipy
 import numpy.matlib as matlib
 
-def GetParameterStrings(modelname):
+def get_parameter_strings(modelname):
     if modelname == 'StickIsoV_B0':
         strings = ['ficvf', 'di', 'dh', 'fiso', 'diso', 'b0', 'theta', 'phi']
     elif modelname ==  'StickTortIsoV_B0':
@@ -48,8 +48,8 @@ def GetParameterStrings(modelname):
         raise ValueError(msg)
     return strings
 
-def GetParameterIndex(modelname, parametername):
-    strings = GetParameterStrings(modelname)
+def get_parameter_index(modelname, parametername):
+    strings = get_parameter_strings(modelname)
 
     for i in range(len(strings)):
         if strings[i] == parametername :
@@ -57,13 +57,13 @@ def GetParameterIndex(modelname, parametername):
             return idx    
     return -1
 
-def NumFreeParams(modelName):
-    return len(GetParameterStrings(modelName))
+def num_free_params(modelName):
+    return len(get_parameter_strings(modelName))
 
-def MakeModel(modelname):
+def make_model(modelname):
     model = {}
     model['name'] = modelname
-    model['numParams'] = NumFreeParams(modelname)
+    model['numParams'] = num_free_params(modelname)
     model['tissuetype'] = 'invivo'
     model['GS'] = {'fixed': np.zeros((model['numParams'])),'fixedvals':np.zeros((model['numParams']))}
     model['GD'] = {'fixed' : np.zeros((model['numParams'])),'fixedvals':np.zeros((model['numParams'])),'type':'single','multistart':{'perturbation':np.zeros((model['numParams'])),'noOfRuns':10}}
@@ -71,12 +71,12 @@ def MakeModel(modelname):
     model['noOfStages'] = 2
     model['sigma'] = {'perVoxel':1,'minSNR':0.02,'scaling':100}
     
-    irfracIdx = GetParameterIndex(modelname, 'irfrac')
+    irfracIdx = get_parameter_index(modelname, 'irfrac')
     if irfracIdx > 0:
         model['tissuetype'] = 'exvivo'
         
     # fix intrinsic diffusivity
-    diIdx = GetParameterIndex(modelname, 'di')
+    diIdx = get_parameter_index(modelname, 'di')
     model['GS']['fixed'][diIdx] = 1
     model['GD']['fixed'][diIdx] = 1
     if model['tissuetype'] == 'invivo':
@@ -87,7 +87,7 @@ def MakeModel(modelname):
         model['GD']['fixedvals'][diIdx] = 0.6E-9
         
     # fix isotropic diffusivity
-    disoIdx = GetParameterIndex(modelname, 'diso')
+    disoIdx = get_parameter_index(modelname, 'diso')
     if disoIdx > 0:
         model['GS']['fixed'][disoIdx] = 1
         model['GD']['fixed'][disoIdx] = 1
@@ -100,7 +100,7 @@ def MakeModel(modelname):
             
     # fix B0
     # fixed value is estimated from the b0 images voxel-wise
-    b0Idx = GetParameterIndex(modelname, 'b0')
+    b0Idx = get_parameter_index(modelname, 'b0')
     if b0Idx > 0:
         model['GS']['fixed'][b0Idx] = 1
         model['GD']['fixed'][b0Idx] = 1
@@ -171,8 +171,8 @@ def scheme2noddi(scheme):
         
     return protocol
 
-def CylNeumanLePar_PGSE(d, G, delta, smalldel):
-    # Line bellow used in matlab version removed as CylNeumanLePar_PGSE is called from SynthMeasWatsonSHCylNeuman_PGSE which already casts x to d, R and kappa -> x replaced by d in arguments
+def cyl_neuman_le_par_PGSE(d, G, delta, smalldel):
+    # Line bellow used in matlab version removed as cyl_neuman_le_par_PGSE is called from synth_meas_watson_SH_cyl_neuman_PGSE which already casts x to d, R and kappa -> x replaced by d in arguments
     #d=x[0]
     
     # Radial wavenumbers
@@ -194,14 +194,14 @@ def CylNeumanLePar_PGSE(d, G, delta, smalldel):
     
     return LE
 
-def CylNeumanLePerp_PGSE(d, R, G, delta, smalldel, roots):
+def cyl_neuman_le_perp_PGSE(d, R, G, delta, smalldel, roots):
     
     # When R=0, no need to do any calculation
     if (R == 0.00):
         LE = np.zeros(G.shape) # np.size(R) = 1
         return LE
     else:
-        msg = "Python implementation for function dipy.reconst.noddi.CylNeumanLePerp_PGSE not yet validated"
+        msg = "Python implementation for function dipy.reconst.noddi.cyl_neuman_le_perp_PGSE not yet validated"
         raise ValueError(msg)
     
     """
@@ -274,7 +274,7 @@ def CylNeumanLePerp_PGSE(d, R, G, delta, smalldel, roots):
     
     return LE"""
 
-def LegendreGaussianIntegral(Lpmp, n):
+def legendre_gaussian_integral(Lpmp, n):
     if n > 6:
         msg = 'The maximum value for n is 6, which correspondes to the 12th order Legendre polynomial'
         raise ValueError(msg)
@@ -337,13 +337,13 @@ def LegendreGaussianIntegral(Lpmp, n):
 #def erfi(x):
 #    return not(np.isreal(x))*(-(cnp.sqrt(-np.power(x,2))/(x+np.isreal(x)))*gammainc(-np.power(x,2),1/2))+np.isreal(x)*np.real(-np.sqrt(-1)*np.sign(x)*((x<5.7)*gammainc(-np.power(x,2),1/2))+(x>=5.7)*np.exp(np.power(x,2))/x/np.sqrt(np.pi))
 
-def WatsonSHCoeff(kappa):
+def watson_SH_coeff(kappa):
     """
     # Implementation for multiple concentration parameters needs to be debuged before making it available
     # Originaly designed to compute the SH coefficients of a Watson distribution with multiple concentration parameters
     # kappa should be a column vector
     if kappa.shape[1] != 1:
-        msg = 'dipy/reconst/noddi.py: WatsonSHCoeff(kappa) needs kappa to be a column vector.'
+        msg = 'dipy/reconst/noddi.py: watson_SH_coeff(kappa) needs kappa to be a column vector.'
         raise ValueError(msg)
     large = kappa>30
     exact = kappa>0.1
@@ -449,7 +449,7 @@ def WatsonSHCoeff(kappa):
     return C
     """
     if isinstance(kappa,np.ndarray):
-        msg = 'dipy/reconst/noddi.py : WatsonSHcoeff() not implemented for kappa array input yet.'
+        msg = 'dipy/reconst/noddi.py : watson_SH_coeff() not implemented for kappa array input yet.'
         raise ValueError(msg)
         
     # In the scope of AMICO only a single value is used for kappa
@@ -553,7 +553,7 @@ def WatsonSHCoeff(kappa):
     return C   
 
 
-def SynthMeasWatsonSHCylNeuman_PGSE(x, grad_dirs, G, delta, smalldel, fibredir, roots):
+def synth_meas_watson_SH_cyl_neuman_PGSE(x, grad_dirs, G, delta, smalldel, fibredir, roots):
     d=x[0]
     R=x[1]
     kappa=x[2]
@@ -561,19 +561,19 @@ def SynthMeasWatsonSHCylNeuman_PGSE(x, grad_dirs, G, delta, smalldel, fibredir, 
     l_q = grad_dirs.shape[0]
     
     # Parallel component
-    LePar = CylNeumanLePar_PGSE(d, G, delta, smalldel)
+    LePar = cyl_neuman_le_par_PGSE(d, G, delta, smalldel)
     
     # Perpendicular component
-    LePerp = CylNeumanLePerp_PGSE(d, R, G, delta, smalldel, roots)
+    LePerp = cyl_neuman_le_perp_PGSE(d, R, G, delta, smalldel, roots)
     
     ePerp = np.exp(LePerp)
     
     # Compute the Legendre weighted signal
     Lpmp = LePerp - LePar
-    lgi = LegendreGaussianIntegral(Lpmp, 6)
+    lgi = legendre_gaussian_integral(Lpmp, 6)
     
     # Compute the spherical harmonic coefficients of the Watson's distribution
-    coeff = WatsonSHCoeff(kappa)
+    coeff = watson_SH_coeff(kappa)
     coeffMatrix = matlib.repmat(coeff, l_q, 1)
     
     # Compute the dot product between the symmetry axis of the Watson's distribution
@@ -614,7 +614,7 @@ def SynthMeasWatsonSHCylNeuman_PGSE(x, grad_dirs, G, delta, smalldel, fibredir, 
     
     return E
 
-def WatsonHinderedDiffusionCoeff(dPar, dPerp, kappa):
+def watson_hindered_diffusion_coeff(dPar, dPerp, kappa):
     
     dw = np.zeros((2,1))
     dParMdPerp = dPar - dPerp
@@ -633,7 +633,7 @@ def WatsonHinderedDiffusionCoeff(dPar, dPerp, kappa):
     
     return dw
 
-def SynthMeasHinderedDiffusion_PGSE(x, grad_dirs, G, delta, smalldel, fibredir):
+def synth_meas_hindered_diffusion_PGSE(x, grad_dirs, G, delta, smalldel, fibredir):
     
     dPar=x[0]
     dPerp=x[1]
@@ -656,21 +656,21 @@ def SynthMeasHinderedDiffusion_PGSE(x, grad_dirs, G, delta, smalldel, fibredir):
     
     return E
 
-def SynthMeasWatsonHinderedDiffusion_PGSE(x, grad_dirs, G, delta, smalldel, fibredir):
+def synth_meas_watson_hindered_diffusion_PGSE(x, grad_dirs, G, delta, smalldel, fibredir):
     
     dPar = x[0]
     dPerp = x[1]
     kappa = x[2]
     
     # get the equivalent diffusivities
-    dw = WatsonHinderedDiffusionCoeff(dPar, dPerp, kappa)
+    dw = watson_hindered_diffusion_coeff(dPar, dPerp, kappa)
     
     xh = np.column_stack([dw[0], dw[1]])
-    E = SynthMeasHinderedDiffusion_PGSE(xh, grad_dirs, G, delta, smalldel, fibredir)
+    E = synth_meas_hindered_diffusion_PGSE(xh, grad_dirs, G, delta, smalldel, fibredir)
     
     return E
 
-def SynthMeasIsoGPD(d, protocol):
+def synth_meas_iso_GPD(d, protocol):
     
     if (protocol['pulseseq'] == 'PGSE') or (protocol['pulseseq'] == 'STEAM'):
     
@@ -682,7 +682,7 @@ def SynthMeasIsoGPD(d, protocol):
         E = np.exp(-difftime*modQ_Sq*d)
     
     else:
-        msg = 'SynthMeasIsoGPD() : Protocol %s not translated from NODDI matlab code yet' % protocol['pulseseq']
+        msg = 'synth_meas_iso_GPD() : Protocol %s not translated from NODDI matlab code yet' % protocol['pulseseq']
         raise ValueError(msg)
     
     return E
