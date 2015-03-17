@@ -74,6 +74,23 @@ def read_bvals_bvecs(fbvals, fbvecs):
     return bvals, bvecs
 
 def write_gradient_to_camino_file(gradient_object,filename):
+    """
+    Write GradientTable parameters to a Camino scheme file
+
+    Parameters
+    ----------
+    gradient_object : GradientTable object
+             GradientTable to write
+    filename : str
+             path of Camino scheme file to create
+
+    Notes
+    -----
+    The Camino scheme file will have the STEJSKALTANNER format if the GradientTable
+    contains gradient information (big_delta, small delta, gradient_strength and echo time).
+    Otherwise a scheme file with the BVECTOR format will be written (xyzb). 
+
+    """
     if gradient_object.gradient_strength is not None and gradient_object.big_delta is not None and gradient_object.small_delta is not None and gradient_object.TE is not None:
         scheme = np.column_stack((gradient_object.gradients, gradient_object.gradient_strength, gradient_object.big_delta, gradient_object.small_delta, gradient_object.TE))
         header = 'VERSION: STEJSKALTANNER'
